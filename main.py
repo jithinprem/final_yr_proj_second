@@ -48,6 +48,7 @@ class Processor:
             lr=self.arg.optimizer_args['base_lr'],  # TODO: difference between weight_decay and lr
             weight_decay=self.arg.optimizer_args['weight_decay']
         )
+        # optimizer.sheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=milestones, gamma=0.2)
         print('returning model/ opitmizer')
         return model, optimizer
 
@@ -82,6 +83,14 @@ class Processor:
         dataset_train = SignDataset('train')
         dataloader = DataLoader(dataset_train, shuffle=False, batch_size=1)
         for epoch in range(self.arg.num_epoch):
+            if epoch % 5 == 0:
+                path = "model"+str(epoch)+".pt"
+                torch.save({
+                    'epoch': epoch,
+                    'model_state_dict': self.model.state_dict(),
+                    'optimizer_state_dict': self.optimizer.state_dict(),
+                    # 'scheduler_state_dict': self.optimizer.scheduler.state_dict(),
+                },path)
             incured_loss = seq_train(dataloader, self.model, self.optimizer, self.arg.model_args['num_classes'])
             x = [i for i in range(len(incured_loss))]
             plt.plot(x, incured_loss)

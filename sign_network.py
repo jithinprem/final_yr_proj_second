@@ -2,11 +2,12 @@ import torch
 import torch.nn as nn
 import torchvision
 import torchvision.models as models
+import CTCDecoder
 
 from basicfunc import easyprint
 
 lr = 0.001
-epochs = 10
+epochs = 30
 
 class LSTMVideoClassifier(nn.Module):
     def __init__(self, input_size, hidden_size, output_size):
@@ -19,46 +20,6 @@ class LSTMVideoClassifier(nn.Module):
         out1 = self.fc(h_n[-1])
         notes_out = output[:, -1, :]
         return output, out1, notes_out
-
-
-
-class TemporalConv(nn.Module):
-    def __init__(self, input_size, hidden_size, conv_type=2, use_bn=False, num_classes=-1):
-        super(TemporalConv, self).__init__()
-        self.use_bn = use_bn
-        self.input_size = input_size
-        self.hidden_size = hidden_size
-        self.num_classes = num_classes
-        self.conv_type = conv_type
-
-        if self.conv_type == 0:
-            self.kernel_size = ['K3']
-        elif self.conv_type == 1:
-            self.kernel_size = ['K5', "P2"]
-        elif self.conv_type == 2:
-            self.kernel_size = ['K5', "P2", 'K5', "P2"]
-
-        modules = []
-        for layer_idx, ks in enumerate(self.kernel_size):
-            input_sz = self.input_size if layer_idx == 0 else self.hidden_size
-            if ks[0] == 'P':
-                modules.append(nn.MaxPool1d(kernel_size=int(ks[1]), ceil_mode=False))
-            elif ks[0] == 'K':
-                modules.append(
-                    nn.Conv1d(input_sz, self.hidden_size, kernel_size=int(ks[1]), stride=1, padding=0)
-                )
-                modules.append(nn.BatchNorm1d(self.hidden_size))
-                modules.append(nn.ReLU(inplace=True))
-        self.temporal_conv = nn.Sequential(*modules)
-
-        if self.num_classes != -1:
-            self.fc = nn.Linear(self.hidden_size, self.num_classes)
-
-
-    def forward(self, frame_feat):
-        visual_feat = self.temporal_conv(frame_feat)
-        return visual_feat
-
 
 
 class SingleConv(nn.Module):
@@ -91,39 +52,51 @@ class SingleConv(nn.Module):
         out = self.single_conv(x)
         return out
 
-
+class decode:
+    def __init__(self):
+        pass
 
 
 class Signmodel(nn.Module):
+
 
     def __init__(self, num_classes):
         super(Signmodel, self).__init__()
         self.conv2d = models.resnet18(weights="IMAGENET1K_V1")
         self.conv2d.fc = nn.Linear(in_features=512, out_features=512)
         self.single_conv = SingleConv(input_channel=512, output_channel=1024)
-        self.temp_conv = TemporalConv(input_size=512, hidden_size=1024 )
         self.temporal_lstm = LSTMVideoClassifier(input_size=1024, hidden_size=1024, output_size=num_classes)
+        self.classifier = nn.Linear(in_features= 1024, out_features=num_classes+1) # 224 is (no_classes +1 )
+
+        # Our loss func : ctc loss
+        self.myloss = torch.nn.CTCLoss(reduction='none', zero_infinity=False)
 
     def forward(self, x):
         batch, temp, channel, height, width = x.shape
 
-        print('input to model: ', x.shape)
+        # print('input to model: ', x.shape)
+        # input to model : [1, 176, 3, 224, 224]   176 depends on no. of frames in the sign
         x = x.reshape(-1, 3, 224, 224)
-        print('after reshaping going to feed to 2d:', x.shape)
-        print('input to conv2d : ', x.shape)
+        # after reshape : [176 , 3 , 224, 224]
         out = self.conv2d(x)
-        print('after conv2d : ', out.shape)
+        # out.shape = [176, 512] output of fc is set to 512
+        # print('after conv2d : ', out.shape)
         out = out.reshape(batch, temp, -1).transpose(1, 2)
-        print('after reshape from 2d output : ', out.shape)
-        print('input to single_conv 1d : ', out.shape)
+        # out after reshape : [1, 512, 176]
         out = self.single_conv(out)
-        print('after 1d covolution shape : ', out.shape)
+        # print('after 1d covolution shape : ', out.shape)
+        # shape out = [1, 1024, 41]
         out = out.permute(0, 2, 1)
         print('after permute and feed to temporal lstm : ', out.shape)
         out = self.temporal_lstm(out)
-        print('shape without fc : ', out[0].shape)
+        print('shape of simply output is : ', out[0].shape)
         print('shape with fc : ', out[1].shape)
         print('shape of note_way : ', out[2].shape)
+        out = self.classifier(out[0])
+        print('dimension after classifer : ', out.shape)
+        out = out.permute(1, 0, 2)
+        print('dimension after permute to feed to loss func : ', out.shape)
+
 
 
         return out
@@ -144,6 +117,19 @@ class Signmodel(nn.Module):
     #     return out
 
 
-    def criterion_calculation(self):
-        return self.ctc_loss_func
+    def criterion_calculation(self, ret_T_N_C1, true_label, inp_len, lab_len):
+        # ctc loss, feat_len : feature_length
+        weight = 1
+        loss = 0
+
+        inp_len = torch.tensor(inp_len)
+        inp_len = inp_len.to(torch.int)
+
+        lab_len = torch.tensor(lab_len)
+        lab_len = lab_len.to(torch.int)
+
+        loss = weight * self.myloss(ret_T_N_C1.log_softmax(-1),
+                                              true_label, inp_len,
+                                              lab_len).mean()
+        return loss
 
