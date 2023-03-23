@@ -45,7 +45,7 @@ class SingleConv(nn.Module):
 
         # self.fc = nn.Linear(self.hidden_size, self.num_classes)
 
-        layers = [layer1, layer2 ,layer3, layer4, layer5, layer6, layer7, layer8]
+        layers = [layer1, layer2, layer3, layer4, layer5, layer6, layer7, layer8]
         self.single_conv = nn.Sequential(*layers)
 
     def forward(self, x):
@@ -74,22 +74,22 @@ class Signmodel(nn.Module):
     def forward(self, x):
         batch, temp, channel, height, width = x.shape
 
-        # print('input to model: ', x.shape)
+        print('input to model: ', x.shape)
         # input to model : [1, 176, 3, 224, 224]   176 depends on no. of frames in the sign
         x = x.reshape(-1, 3, 224, 224)
         # after reshape : [176 , 3 , 224, 224]
         out = self.conv2d(x)
         # out.shape = [176, 512] output of fc is set to 512
-        # print('after conv2d : ', out.shape)
+        print('after conv2d : ', out.shape)
         out = out.reshape(batch, temp, -1).transpose(1, 2)
         # out after reshape : [1, 512, 176]
         out = self.single_conv(out)
-        # print('after 1d covolution shape : ', out.shape)
+        print('after 1d covolution shape : ', out.shape)
         # shape out = [1, 1024, 41]
         out = out.permute(0, 2, 1)
         print('after permute and feed to temporal lstm : ', out.shape)
         out = self.temporal_lstm(out)
-        print('shape of simply output is : ', out[0].shape)
+        print('shape of simply output is : ')
         print('shape with fc : ', out[1].shape)
         print('shape of note_way : ', out[2].shape)
         out = self.classifier(out[0])

@@ -20,10 +20,11 @@ def seq_train(loader, model, optimizer, no_classes):
 
 
         y_pred = model(vid)
-        # loss = model.criterion_calculation(y_pred, words, (y_pred), len(words))
-        # optimizer.zero_grad()
-        # loss.backward()
-        # optimizer.step()
-        # loss_value.append(loss.item())
+        loss = model.criterion_calculation(y_pred, torch.tensor(words), int(y_pred.shape[0]), len(words))
+        print('loss : ', loss)
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        loss_value.append(loss.item())
     # optimizer.scheduler.step()
     return loss_value

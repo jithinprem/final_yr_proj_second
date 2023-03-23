@@ -17,6 +17,8 @@ from dataloader import SignDataset
 import matplotlib.pyplot as plt
 from sign_network import *
 
+# from torch.utils import tensorboard
+
 class Processor:
     def __init__(self, arg):
         self.arg = arg
@@ -82,7 +84,9 @@ class Processor:
         self.model.train()
         dataset_train = SignDataset('train')
         dataloader = DataLoader(dataset_train, shuffle=False, batch_size=1)
+        # writer = SummaryWriter()
         for epoch in range(self.arg.num_epoch):
+            incured_loss = seq_train(dataloader, self.model, self.optimizer, self.arg.model_args['num_classes'])
             if epoch % 5 == 0:
                 path = "model"+str(epoch)+".pt"
                 torch.save({
@@ -91,7 +95,9 @@ class Processor:
                     'optimizer_state_dict': self.optimizer.state_dict(),
                     # 'scheduler_state_dict': self.optimizer.scheduler.state_dict(),
                 },path)
-            incured_loss = seq_train(dataloader, self.model, self.optimizer, self.arg.model_args['num_classes'])
+            # writer.add_scalar('training loss',
+            #                    incured_loss[-1],
+            #                   epoch)
             x = [i for i in range(len(incured_loss))]
             plt.plot(x, incured_loss)
             plt.xlabel('each_batch')
