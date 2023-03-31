@@ -1,7 +1,9 @@
 import numpy as np
 import torch
+from fast_ctc_decode import viterbi_search
 from tqdm import tqdm
 import torch.nn as nn
+import worderrorrate
 
 from basicfunc import easyprint
 
@@ -28,3 +30,25 @@ def seq_train(loader, model, optimizer, no_classes):
         loss_value.append(loss.item())
     # optimizer.scheduler.step()
     return loss_value
+
+def seq_test(loader, model, gloss_dict):
+    model.eval()
+    loss_value = []
+    for batch_idx, data in enumerate(tqdm(loader)):
+        # TODO: assign the video and labels to gpu if exist..
+        vid = data[0]
+        words = data[1]
+        lab_pred = model(vid)
+
+        # use decoder to decode sentence
+        seq, path = viterbi_search(lab_pred, list(gloss_dict.keys()) + ['_'])
+
+        # calculate loss through word err rate
+        w = worderrorrate.WER(words, seq)
+        print(w)
+        loss_value.append(w)
+    return loss_value
+
+
+
+

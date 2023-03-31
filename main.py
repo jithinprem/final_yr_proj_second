@@ -3,7 +3,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 
 from basicfunc import easyprint
-from seq_scripts import seq_train
+from seq_scripts import seq_train, seq_test
 from sign_network import Signmodel
 from utility.parameters import get_parser
 from utility.device import GpuDataParallel
@@ -14,8 +14,8 @@ import numpy as np
 from slr_network import SLRModel
 faulthandler.enable()
 from dataloader import SignDataset
-import matplotlib.pyplot as plt
 from sign_network import *
+from fast_ctc_decode import beam_search, viterbi_search
 
 # from torch.utils import tensorboard
 
@@ -32,7 +32,7 @@ class Processor:
 
         self.arg.model_args['num_classes'] = len(self.gloss_dict) + 1
         easyprint('number of classes', arg.model_args['num_classes'])
-
+        easyprint('gloss dict ', list(self.gloss_dict.keys()))
         self.model, self.optimizer = self.loading()
 
 
@@ -68,10 +68,24 @@ class Processor:
         :return:
         '''
 
-        choice = input('Do you wish to 1)Train or 2)Eval : ')
+        choice = input('Do you wish to 1)Train or 2)single test or 3)evaluate : ')
         if choice == '1':
-            self.train_model()
-        else:
+            all_epoch_loss = self.train_model()
+            # plot the loss in graph
+        if choice == 2:
+            # test model, give any row number from the csv file
+            modelno = input('enter model no ')
+            PATH = f'model'+ modelno +'.pt'
+            trained_model = torch.load(PATH)['model_state_dict']
+            ind_no = input('enter the index_no : ')
+            # fetch data according to index and run on the model
+            dataset_train = SignDataset('train')
+            vid, lab = dataset_train.test_output(ind_no)
+            lab_pred = trained_model(vid)
+            # the predicted is a series of probablity
+            seq, path = viterbi_search(lab_pred, list(self.gloss_dict.keys()) + ['_'])
+            print(seq)
+        if choice == 3:
             self.eval_model()
 
 
@@ -81,11 +95,21 @@ class Processor:
 
     def train_model(self):
         print('training model...')
+        epoch = 0
+
+        p_use = input('you wanna use the pretrained model ? ')
+        if p_use == '1' or p_use =='y' or p_use =='Y':
+            checkpoint = torch.load('model5.pt')
+            self.model.load_state_dict(checkpoint['model_state_dict'])
+            self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            epoch = checkpoint['epoch']
+
         self.model.train()
         dataset_train = SignDataset('train')
         dataloader = DataLoader(dataset_train, shuffle=False, batch_size=1)
         # writer = SummaryWriter()
-        for epoch in range(self.arg.num_epoch):
+        all_epoch_loss = []
+        for epoch in range(epoch, self.arg.num_epoch+1):
             incured_loss = seq_train(dataloader, self.model, self.optimizer, self.arg.model_args['num_classes'])
             if epoch % 5 == 0:
                 path = "model"+str(epoch)+".pt"
@@ -95,19 +119,18 @@ class Processor:
                     'optimizer_state_dict': self.optimizer.state_dict(),
                     # 'scheduler_state_dict': self.optimizer.scheduler.state_dict(),
                 },path)
-            # writer.add_scalar('training loss',
-            #                    incured_loss[-1],
-            #                   epoch)
-            x = [i for i in range(len(incured_loss))]
-            plt.plot(x, incured_loss)
-            plt.xlabel('each_batch')
-            plt.ylabel('loss currently')
-            plt.title('Refrence Liss func')
-            plt.show()
+
+            all_epoch_loss.append(incured_loss)
+        return all_epoch_loss
 
     def eval_model(self):
-        print('evaluating model...')
+        print('evaulating model')
         self.model.eval()
+        dataset_test = SignDataset('test')
+        dataloader = DataLoader(dataset_test, shuffle=False, batch_size=1)
+        incured_loss = seq_test(dataloader, self.model, self.gloss_dict)
+        print(incured_loss)
+
 
 
 if __name__ == '__main__':

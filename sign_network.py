@@ -74,28 +74,28 @@ class Signmodel(nn.Module):
     def forward(self, x):
         batch, temp, channel, height, width = x.shape
 
-        print('input to model: ', x.shape)
+        # print('input to model: ', x.shape)
         # input to model : [1, 176, 3, 224, 224]   176 depends on no. of frames in the sign
         x = x.reshape(-1, 3, 224, 224)
         # after reshape : [176 , 3 , 224, 224]
         out = self.conv2d(x)
         # out.shape = [176, 512] output of fc is set to 512
-        print('after conv2d : ', out.shape)
+        # print('after conv2d : ', out.shape)
         out = out.reshape(batch, temp, -1).transpose(1, 2)
         # out after reshape : [1, 512, 176]
         out = self.single_conv(out)
-        print('after 1d covolution shape : ', out.shape)
+        # print('after 1d covolution shape : ', out.shape)
         # shape out = [1, 1024, 41]
         out = out.permute(0, 2, 1)
-        print('after permute and feed to temporal lstm : ', out.shape)
+        # print('after permute and feed to temporal lstm : ', out.shape)
         out = self.temporal_lstm(out)
-        print('shape of simply output is : ')
-        print('shape with fc : ', out[1].shape)
-        print('shape of note_way : ', out[2].shape)
+        # print('shape of simply output is : ')
+        # print('shape with fc : ', out[1].shape)
+        # print('shape of note_way : ', out[2].shape)
         out = self.classifier(out[0])
-        print('dimension after classifer : ', out.shape)
+        # print('dimension after classifer : ', out.shape)
         out = out.permute(1, 0, 2)
-        print('dimension after permute to feed to loss func : ', out.shape)
+        # print('dimension after permute to feed to loss func : ', out.shape)
 
 
 
@@ -119,17 +119,17 @@ class Signmodel(nn.Module):
 
     def criterion_calculation(self, ret_T_N_C1, true_label, inp_len, lab_len):
         # ctc loss, feat_len : feature_length
+        '''
+            TODO: Future work
+            1) the weight hyperparameter, what is to be done
+        '''
         weight = 1
-        loss = 0
-
         inp_len = torch.tensor(inp_len)
         inp_len = inp_len.to(torch.int)
 
         lab_len = torch.tensor(lab_len)
         lab_len = lab_len.to(torch.int)
 
-        loss = weight * self.myloss(ret_T_N_C1.log_softmax(-1),
-                                              true_label, inp_len,
-                                              lab_len).mean()
+        loss = weight * self.myloss(ret_T_N_C1.log_softmax(-1), true_label, inp_len, lab_len).mean()
         return loss
 

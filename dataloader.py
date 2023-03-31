@@ -73,15 +73,14 @@ class SignDataset(Dataset):
 
         fi = self.inputs_list[index]  # input_list is the dict // its printed.. see
         path = 'dataset/phoenix-2014-multisigner/features/fullFrame-256x256px/' + fi['folder']
-        images_path_list = glob.glob(path)
+        images_path_list = sorted(glob.glob(path))
         label_list = []
         for phase in fi['label'].split(" "):
             if phase == '':
                 continue
             if phase in self.dict.keys():
                 label_list.append(self.dict[phase][0])
-        sign_images = [cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2RGB) for img_path in images_path_list]
-        # normalized_img = [cv2.normalize(sign_pic, None, 0, 1, cv2.NORM_MINMAX) for sign_pic in sign_images]
-        normalized_img = [sign_pic/255.0 for sign_pic in sign_images]  # this is list of all images for that sign
-        return normalized_img, label_list
+
+        sign_images = torch.stack([(transform(cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2RGB))) for img_path in images_path_list])
+        return sign_images, label_list
 
