@@ -72,7 +72,8 @@ class Processor:
         if choice == '1':
             all_epoch_loss = self.train_model()
             # plot the loss in graph
-        if choice == 2:
+        if choice == '2':
+            print("choice 2")
             # test model, give any row number from the csv file
             modelno = input('enter model no ')
             PATH = f'model'+ modelno +'.pt'
@@ -85,7 +86,7 @@ class Processor:
             # the predicted is a series of probablity
             seq, path = viterbi_search(lab_pred, list(self.gloss_dict.keys()) + ['_'])
             print(seq)
-        if choice == 3:
+        if choice == '3':
             self.eval_model()
 
 
@@ -99,14 +100,14 @@ class Processor:
 
         p_use = input('you wanna use the pretrained model ? ')
         if p_use == '1' or p_use =='y' or p_use =='Y':
-            checkpoint = torch.load('model5.pt')
+            checkpoint = torch.load('model20.pt')
             self.model.load_state_dict(checkpoint['model_state_dict'])
             self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             epoch = checkpoint['epoch']
 
         self.model.train()
         dataset_train = SignDataset('train')
-        dataloader = DataLoader(dataset_train, shuffle=False, batch_size=1)
+        dataloader = DataLoader(dataset_train, shuffle=False, batch_size=2)
         # writer = SummaryWriter()
         all_epoch_loss = []
         for epoch in range(epoch, self.arg.num_epoch+1):
@@ -123,12 +124,54 @@ class Processor:
             all_epoch_loss.append(incured_loss)
         return all_epoch_loss
 
+    def pad_vid(self, batch):
+        batch = [item for item in sorted(batch, key=lambda x : len(x[0]), reverse=True)]
+        video, label = list(zip(*batch))
+
+        # maximum length video is determined
+        max_len = len(video[0])
+
+        # setting up padding
+        left_pad = 6
+        right_pad = int(np.ceil(max_len/4.0))*4 - max_len+6     # here we are adding 6 to the rightpad and some additional to make it multiple of 4
+
+        max_len = max_len + right_pad + left_pad
+        padded_video = [torch.cat(
+            (
+                vid[0][None].expand(left_pad, -1, -1, -1),
+                vid,
+                vid[-1][None].expand(max_len-len(vid)-left_pad, -1, -1, -1),
+            )
+            , dim=0)
+            for vid in video
+        ]
+        padded_video = torch.stack(padded_video)
+
+
+
     def eval_model(self):
         print('evaulating model')
         self.model.eval()
+
+        '''
+            using a pretrained model for evaulation
+        '''
+        model_no = input('enter model number for evaulation : ')
+        # Load the saved model from disk
+        checkpoint = torch.load(f'model{model_no}.pt')
+        self.model.load_state_dict(checkpoint['model_state_dict'], strict=True)
+        # Load the optimizer state
+        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
+
+        # setting dataset for eval
         dataset_test = SignDataset('test')
-        dataloader = DataLoader(dataset_test, shuffle=False, batch_size=1)
+        dataloader = DataLoader(dataset_test, shuffle=False, batch_size=2, collate_fn=self.pad_vid)
+
+        # testing
         incured_loss = seq_test(dataloader, self.model, self.gloss_dict)
+
+        # loss
         print(incured_loss)
 
 

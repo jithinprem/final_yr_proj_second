@@ -84,10 +84,14 @@ if __name__ == '__main__':
         description='Data process for CSLR.')
     parser.add_argument('--dataset', type=str, default='phoenix2014',
                         help='save prefix')
+
     parser.add_argument('--dataset-root', type=str, default='../dataset/phoenix-2014-multisigner',
                         help='path to the dataset')
+    # parser.add_argument('--dataset-root', type=str, default='E:\phoenix-2014.v3.tar\phoenix2014-release\phoenix-2014-multisigner',
+    #                     help='path to the dataset')
     parser.add_argument('--annotation-prefix', type=str, default='annotations/manual/{}.corpus.csv',
                         help='annotation prefix')
+
     parser.add_argument('--output-res', type=str, default='256x256px',
                         help='resize resolution for image sequence')
     parser.add_argument('--process-image', '-p', action='store_true',
@@ -120,6 +124,7 @@ if __name__ == '__main__':
 
         print(f"Resize image to {args.output_res}")
         args.process_image = False
+        args.multiprocessing = True
         if args.process_image:
             if args.multiprocessing:
                 run_mp_cmd(10, partial(resize_dataset, dsize=args.output_res, info_dict=information), video_index)

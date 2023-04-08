@@ -17,6 +17,8 @@ transform = transforms.Compose([
 
 class SignDataset(Dataset):
     def __init__(self, mode):
+        if mode == 'test':
+            mode = 'train'
         self.inputs_list = np.load(f"preprocess/phoenix2014/{mode}_info.npy", allow_pickle=True).item()
         easyprint('saved dictionary of all details', self.inputs_list)
         self.dict = np.load(f"preprocess/phoenix2014/gloss_dict.npy", allow_pickle=True).item()
@@ -61,7 +63,7 @@ class SignDataset(Dataset):
 
     def __len__(self):
         return len(self.inputs_list) - 1   # -1 is to avoid the first prefix entry
-
+        # TODO : check if it would be different for testing data
 
     def test_output(self, index):
         '''

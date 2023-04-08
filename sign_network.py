@@ -9,10 +9,17 @@ from basicfunc import easyprint
 lr = 0.001
 epochs = 30
 
+class Identity(nn.Module):
+    def __init__(self):
+        super(Identity, self).__init__()
+    def forward(self, x):
+        return x
+
+
 class LSTMVideoClassifier(nn.Module):
     def __init__(self, input_size, hidden_size, output_size):
         super().__init__()
-        self.lstm = nn.LSTM(input_size, hidden_size, batch_first=True, num_layers=2)
+        self.lstm = nn.LSTM(input_size, hidden_size, batch_first=False, num_layers=2)
         self.fc = nn.Linear(hidden_size, output_size)
 
     def forward(self, x):
@@ -49,6 +56,8 @@ class SingleConv(nn.Module):
         self.single_conv = nn.Sequential(*layers)
 
     def forward(self, x):
+        # x = torch.cat([x[len_x[0]*idx:x[len_x[0]]]])
+        print("inside forward")
         out = self.single_conv(x)
         return out
 
@@ -63,10 +72,12 @@ class Signmodel(nn.Module):
     def __init__(self, num_classes):
         super(Signmodel, self).__init__()
         self.conv2d = models.resnet18(weights="IMAGENET1K_V1")
-        self.conv2d.fc = nn.Linear(in_features=512, out_features=512)
+        # self.conv2d.fc = nn.Linear(in_features=512, out_features=512)
+        self.conv2d.fc = Identity()
+
         self.single_conv = SingleConv(input_channel=512, output_channel=1024)
         self.temporal_lstm = LSTMVideoClassifier(input_size=1024, hidden_size=1024, output_size=num_classes)
-        self.classifier = nn.Linear(in_features= 1024, out_features=num_classes+1) # 224 is (no_classes +1 )
+        self.classifier = nn.Linear(in_features= 1024, out_features=num_classes) # 224 is (no_classes)
 
         # Our loss func : ctc loss
         self.myloss = torch.nn.CTCLoss(reduction='none', zero_infinity=False)
@@ -86,15 +97,19 @@ class Signmodel(nn.Module):
         out = self.single_conv(out)
         # print('after 1d covolution shape : ', out.shape)
         # shape out = [1, 1024, 41]
-        out = out.permute(0, 2, 1)
+        # TODO: we changed the permute also the batch first changed to false
+        # out = out.permute(0, 2, 1)
+        out = out.permute(2, 0, 1)
         # print('after permute and feed to temporal lstm : ', out.shape)
         out = self.temporal_lstm(out)
+        print('the dimension after lstm : ', out[0].shape)
         # print('shape of simply output is : ')
         # print('shape with fc : ', out[1].shape)
         # print('shape of note_way : ', out[2].shape)
         out = self.classifier(out[0])
         # print('dimension after classifer : ', out.shape)
-        out = out.permute(1, 0, 2)
+        # TODO: we are commenting the below line because of changes made in batch_fist and the permute(2, 0, 1) from (0, 2, 1)
+        # out = out.permute(1, 0, 2)
         # print('dimension after permute to feed to loss func : ', out.shape)
 
 
