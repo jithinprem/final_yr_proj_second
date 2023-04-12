@@ -111,7 +111,7 @@ class Signmodel(nn.Module):
         # TODO: we are commenting the below line because of changes made in batch_fist and the permute(2, 0, 1) from (0, 2, 1)
         # out = out.permute(1, 0, 2)
         # print('dimension after permute to feed to loss func : ', out.shape)
-
+        out = out.reshape(-1, out.shape[2])
 
 
         return out

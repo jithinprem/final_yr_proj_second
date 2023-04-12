@@ -38,28 +38,35 @@ class SignDataset(Dataset):
 
         sign_images = torch.stack([(transform(cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2RGB))) for img_path in images_path_list])
 
-
-
-        # print('shape before -- ', sign_images.shape)
-        # '''
-        #     1) the shape before was [104, 256, 256, 3]
-        #     2) now i need to permute to bring 3 in front rearrange it to [3, 104, 256, 256]
-        #     3) i need to merge the images as a single dimensional array ie [3, 104, 256*256]
-        # '''
-        # sign_images = sign_images.permute(3, 0, 1, 2)
-        # print('after permutation -- ', sign_images.shape)
-        # per_shape = sign_images.shape
-        # sign_images = sign_images.view(per_shape[0], per_shape[1], -1)
-        # print('after merging the dimension -- ', sign_images.shape)
-        #
-        # # sign_images = sign_images.squeeze(0)  # Remove the batch dimension
-        # # sign_images = sign_images.permute(3, 0, 1, 2)  # Move the channel dimension to the front
-        # # print('shape afterwards', sign_images.shape)  # Should print [3, 214, 256, 256]
-        #
-        # print('from __getitem___ : ', type(sign_images))
-        # # normalized_img = [sign_pic/255.0 for sign_pic in sign_images]  # this is list of all images for that sign
         return sign_images, label_list
 
+    @staticmethod
+    def collate_fn(batch):   # this function is used to pad the original video to approriate length
+        batch = [item for item in sorted(batch, key=lambda x : len(x[0]), reverse=True)]
+        video, label = list(zip(*batch))
+
+        # maximum length video is determined
+        max_len = len(video[0])
+
+        # setting up padding
+        left_pad = 6
+        right_pad = int(np.ceil(max_len/4.0))*4 - max_len+6     # here we are adding 6 to the rightpad and some additional to make it multiple of 4
+
+        max_len = max_len + right_pad + left_pad
+        padded_video = [torch.cat(
+            (
+                vid[0][None].expand(left_pad, -1, -1, -1),
+                vid,
+                vid[-1][None].expand(max_len-len(vid)-left_pad, -1, -1, -1),
+            )
+            , dim=0)
+            for vid in video
+        ]
+        padded_video = torch.stack(padded_video)
+        padded_label = []
+        for lab in label:
+            padded_label.extend(lab)
+        return padded_video, padded_label
 
     def __len__(self):
         return len(self.inputs_list) - 1   # -1 is to avoid the first prefix entry

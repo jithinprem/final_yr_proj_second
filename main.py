@@ -2,6 +2,7 @@ import os
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
+import dataloader
 from basicfunc import easyprint
 from seq_scripts import seq_train, seq_test
 from sign_network import Signmodel
@@ -25,6 +26,7 @@ class Processor:
         self.device = GpuDataParallel()
         self.dataset = {}
         self.data_loader = {}
+
 
         # gloss dict we get after preprocessing in which each word has its associated integer_index and occurance, its a list [uniq_index, occourance]
         # dataset_info is specifically being loaded from main method
@@ -107,12 +109,14 @@ class Processor:
 
         self.model.train()
         dataset_train = SignDataset('train')
-        dataloader = DataLoader(dataset_train, shuffle=False, batch_size=2)
+        print('we are reaching 1')
+        dataloader = DataLoader(dataset_train, shuffle=False, batch_size=1, collate_fn=dataset_train.collate_fn)
+        print('we are reaching 2')
         # writer = SummaryWriter()
         all_epoch_loss = []
         for epoch in range(epoch, self.arg.num_epoch+1):
             incured_loss = seq_train(dataloader, self.model, self.optimizer, self.arg.model_args['num_classes'])
-            if epoch % 5 == 0:
+            if epoch % 5 == 0 or epoch == self.arg.num_epoch:
                 path = "model"+str(epoch)+".pt"
                 torch.save({
                     'epoch': epoch,
@@ -124,28 +128,9 @@ class Processor:
             all_epoch_loss.append(incured_loss)
         return all_epoch_loss
 
-    def pad_vid(self, batch):
-        batch = [item for item in sorted(batch, key=lambda x : len(x[0]), reverse=True)]
-        video, label = list(zip(*batch))
 
-        # maximum length video is determined
-        max_len = len(video[0])
 
-        # setting up padding
-        left_pad = 6
-        right_pad = int(np.ceil(max_len/4.0))*4 - max_len+6     # here we are adding 6 to the rightpad and some additional to make it multiple of 4
 
-        max_len = max_len + right_pad + left_pad
-        padded_video = [torch.cat(
-            (
-                vid[0][None].expand(left_pad, -1, -1, -1),
-                vid,
-                vid[-1][None].expand(max_len-len(vid)-left_pad, -1, -1, -1),
-            )
-            , dim=0)
-            for vid in video
-        ]
-        padded_video = torch.stack(padded_video)
 
 
 
